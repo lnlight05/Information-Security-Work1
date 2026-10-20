@@ -20,8 +20,9 @@ from app import app  # noqa: E402  (import order is deliberate)
 
 results = []
 
-# The passwords used below are hardcoded on purpose: they are dummy fixtures
-# for the tests, not secrets, so bandit's B105 guess is suppressed on those lines.
+# The passwords used below are hardcoded on purpose: they are dummy fixtures for
+# the tests, not secrets, so bandit's B105 guess is suppressed with a bare `nosec`.
+# (A bare nosec, rather than `nosec B105`, avoids bandit's spurious matching warning.)
 
 
 def check(name, condition, detail=""):
@@ -38,22 +39,22 @@ def main():
     client = app.test_client()
 
     # --- authentication ---------------------------------------------------
-    response = client.post("/auth/login", json={"login": "alice", "password": "secret123"})  # nosec B105
+    response = client.post("/auth/login", json={"login": "alice", "password": "secret123"})  # nosec
     token = (response.get_json() or {}).get("token") if response.status_code == 200 else None
     check("login with valid credentials returns 200 + token", response.status_code == 200 and token,
           "status={}".format(response.status_code))
 
-    response = client.post("/auth/login", json={"login": "alice", "password": "wrong"})  # nosec B105
+    response = client.post("/auth/login", json={"login": "alice", "password": "wrong"})  # nosec
     check("login with wrong password is rejected (401)", response.status_code == 401,
           "status={}".format(response.status_code))
 
-    response = client.post("/auth/login", json={"login": "nobody", "password": "x"})  # nosec B105
+    response = client.post("/auth/login", json={"login": "nobody", "password": "x"})  # nosec
     check("login for unknown user is rejected (401)", response.status_code == 401,
           "status={}".format(response.status_code))
 
     # --- SQL injection ----------------------------------------------------
     for payload in ["alice' OR '1'='1", "' OR 1=1--", "admin'--"]:
-        response = client.post("/auth/login", json={"login": payload, "password": "x"})  # nosec B105
+        response = client.post("/auth/login", json={"login": payload, "password": "x"})  # nosec
         check("SQLi in login rejected: {!r}".format(payload), response.status_code == 401,
               "status={}".format(response.status_code))
 

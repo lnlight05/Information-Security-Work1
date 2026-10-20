@@ -33,22 +33,19 @@ jobs:
           pip install bandit pip-audit
 
       # --- SAST: static analysis of our own code -------------------------
-      # No -q: with -q bandit suppresses even the "0 issues" summary, which
-      # would leave the report file empty and the log useless for screenshots.
+      # `tee` puts the full report into the job log as well as into the artifact.
+      # With -o alone the log only shows bandit's own logging, and with -q the
+      # "0 issues" summary disappears completely, leaving nothing to screenshot.
       - name: SAST - bandit
-        run: bandit -r . -x ./.venv,./.tmp -f txt -o bandit-report.txt
-
-      - name: Show bandit report
-        if: always()
-        run: cat bandit-report.txt || true
+        run: |
+          set -o pipefail
+          bandit -r . -x ./.venv,./.tmp -f txt | tee bandit-report.txt
 
       # --- SCA: known vulnerabilities in third-party dependencies --------
       - name: SCA - pip-audit
-        run: pip-audit -r requirements.txt -f columns -o pip-audit-report.txt
-
-      - name: Show pip-audit report
-        if: always()
-        run: cat pip-audit-report.txt || true
+        run: |
+          set -o pipefail
+          pip-audit -r requirements.txt -f columns | tee pip-audit-report.txt
 
       # --- the API still behaves correctly -------------------------------
       - name: Functional self-check

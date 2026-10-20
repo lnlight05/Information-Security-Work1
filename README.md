@@ -157,10 +157,12 @@ for the two pinned dependencies.
 
 **Note on the five suppressed warnings.** Bandit initially reported five low-severity findings,
 all of them false positives: `token_type="Bearer"` (the keyword argument contains the word
-"token") and four dummy passwords inside the test harness. They are annotated with a targeted
-`# nosec` and a written justification rather than being hidden with a global severity filter —
-running bandit with `--ignore-nosec` still reproduces exactly those five findings, which proves
-the suppression is deliberate and limited.
+"token") and four dummy passwords inside the test harness. Each of the five lines carries a
+bare `# nosec` and the reason is written next to the code, rather than hiding the rules
+globally with a severity filter or a config-level `skips`. A bare `nosec` is used instead of
+`nosec B105` because bandit emits a spurious "no failed test" warning when the rule id is
+given. Running bandit with `--ignore-nosec` still reproduces exactly those five findings,
+which proves the suppression is deliberate and limited to those lines.
 
 ---
 

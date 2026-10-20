@@ -63,11 +63,12 @@ def create_app() -> Flask:
         if user is None or not security.verify_password(password, user["password_hash"]):
             return jsonify(error="invalid credentials"), 401
 
-        # token_type is a JSON field naming the auth scheme, not a credential,
-        # so the B106 guess below is a false positive.
+        # token_type is a JSON field naming the auth scheme, not a credential, so
+        # bandit's B106 guess is a false positive. A bare `nosec` (no rule id) is
+        # used deliberately: with a rule id bandit emits a spurious matching warning.
         return jsonify(
             token=security.issue_token(user),
-            token_type="Bearer",  # nosec B106
+            token_type="Bearer",  # nosec
             expires_in=security.TOKEN_TTL_SECONDS,
         )
 
