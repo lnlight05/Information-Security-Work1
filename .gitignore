@@ -1,0 +1,15 @@
+# local environment
+.venv/
+.tmp/
+__pycache__/
+*.pyc
+
+# runtime data
+*.db
+
+# scanner output (generated in CI, attached as artifacts there)
+bandit-report.txt
+pip-audit-report.txt
+
+# course material, not part of the project
+*.pdf
