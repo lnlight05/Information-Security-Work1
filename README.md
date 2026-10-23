@@ -4,55 +4,13 @@ A deliberately-hardened REST API (Python/Flask) with an automated SAST/SCA pipel
 full reproduction, root-cause analysis and remediation of the real vulnerability
 **CVE-2017-9841** in a Vulhub environment.
 
-- Student: **Yuan Junao** (23320313)
 - Repository: <https://github.com/lnlight05/Information-Security-Work1>
 - Latest successful pipeline run:
   <https://github.com/lnlight05/Information-Security-Work1/actions/runs/39890376916>
 
 ---
 
-## 1. Repository layout
-
-```
-.
-├── app.py                                  Flask application: routes, auth middleware, headers
-├── security.py                             password hashing, JWT issuing/verification, escaping
-├── db.py                                   SQLite data layer, parameterized queries only
-├── selfcheck.py                            15 automated assertions against the API
-├── requirements.txt                        Flask + PyJWT (the only two dependencies)
-├── .github/workflows/ci.yml                SAST + SCA + self-check on every push and PR
-├── fixes/CVE-2017-9841/                    the fixed vulnerable environment (see section 7)
-│   ├── Dockerfile
-│   └── docker-compose.yml
-└── docs/images/                            screenshots referenced below
-```
-
----
-
-## 2. Quick start
-
-```bash
-python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-
-python app.py                    # serves http://127.0.0.1:5000
-python selfcheck.py              # runs the 15 automated checks
-```
-
-The database is created and seeded automatically on first start with two demo users:
-
-| login | password |
-|---|---|
-| `alice` | `secret123` |
-| `bob` | `hunter2` |
-
-> The secret used to sign JWTs is read from the `APP_SECRET` environment variable. The
-> built-in default is a development fallback only; deployments must set their own value.
-
----
-
-## 3. API reference
+## 1. API reference
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
@@ -85,9 +43,9 @@ curl -s -X POST http://127.0.0.1:5000/api/posts -H "Authorization: Bearer $TOKEN
 
 ---
 
-## 4. Implemented security measures
+## 2. Implemented security measures
 
-### 4.1 SQL injection (A03:2021 — Injection)
+### 2.1 SQL injection
 
 Every query lives in `db.py`. The SQL text is a constant and **user input only ever travels in
 the parameter tuple** — there is no f-string, no `%` and no `+` building a statement:
@@ -104,7 +62,7 @@ Injection is therefore structurally impossible rather than "filtered": the parse
 the statement and the data separately. `selfcheck.py` verifies that the payloads
 `alice' OR '1'='1`, `' OR 1=1--`, `admin'--` and `' OR 1=1--` in `?q=` all fail.
 
-### 4.2 XSS (A03:2021 — Injection)
+### 2.2 XSS
 
 The raw text is stored unchanged and **escaped on output** with `html.escape(..., quote=True)`,
 so the database keeps the real value and only the response is neutralized. Every user-controlled
@@ -117,7 +75,7 @@ a browser comes back as inert text. `selfcheck.py` asserts exactly that.
 Additional hardening headers are set on every response: `X-Content-Type-Options: nosniff`,
 `X-Frame-Options: DENY`, `Cache-Control: no-store`.
 
-### 4.3 Authentication (A07:2021 — Identification and Authentication Failures)
+### 2.3 Authentication
 
 - **Password storage** — `hashlib.scrypt` (N=2¹⁴, r=8, p=1, 16-byte random salt per user),
   stored as `scrypt$<salt>$<derived key>`. Verification uses `hmac.compare_digest`, so it is
@@ -133,7 +91,7 @@ Additional hardening headers are set on every response: `X-Content-Type-Options:
 
 ---
 
-## 5. CI/CD pipeline with security scanners
+## 3. CI/CD pipeline with security scanners
 
 `.github/workflows/ci.yml` runs on **every push and every pull request**:
 
@@ -166,9 +124,9 @@ to those lines.
 
 ---
 
-## 6. CVE-2017-9841 — PHPUnit remote code execution
+## 4. CVE-2017-9841 — PHPUnit remote code execution
 
-### 6.1 The vulnerability
+### 4.1 The vulnerability
 
 PHPUnit versions **4.8.19 – 4.8.27** and **5.0.10 – 5.6.2** ship the file
 `vendor/phpunit/phpunit/src/Util/PHP/eval-stdin.php`, which contains:
@@ -186,7 +144,7 @@ Vulnerable environment used: `vulhub/phpunit:5.6.2` from
 [Vulhub](https://github.com/vulhub/vulhub/tree/master/phpunit/CVE-2017-9841), served on
 `http://127.0.0.1:8080`.
 
-### 6.2 Reproduction
+### 4.2 Reproduction
 
 ```bash
 cd vulhub/phpunit/CVE-2017-9841
@@ -221,7 +179,7 @@ The response is `PWNED-49`, not the source text: `49` is the result of `7*7` com
 server**, which proves remote code execution rather than mere reflection. The same request with
 `<?php system('id'); ?>` returns the web server's user id.
 
-### 6.3 Root cause
+### 4.3 Root cause
 
 Two independent conditions must hold at the same time, and in this deployment both do.
 
@@ -236,7 +194,7 @@ Two independent conditions must hold at the same time, and in this deployment bo
 Neither factor alone is enough: a patched PHPUnit removes the primitive, and a correct document
 root hides it. This is why the remediation below addresses both layers.
 
-### 6.4 The fix
+### 4.4 The fix
 
 The fix lives in [`fixes/CVE-2017-9841/`](fixes/CVE-2017-9841/) and does **not** modify the
 Vulhub reference environment:
@@ -276,14 +234,11 @@ cd fixes/CVE-2017-9841
 docker compose up --build -d
 ```
 
-### 6.5 Proof that the vulnerability is eliminated
+### 4.5 Proof that the vulnerability is eliminated
 
 The vulnerable file no longer exists:
 
-```bash
-$ docker compose exec web ls -la /var/www/html/vendor/phpunit/phpunit/src/Util/PHP/eval-stdin.php
-ls: cannot access '...': No such file or directory
-```
+![the vulnerable file is gone](docs/images/cve-file-removed.png)
 
 The identical exploit request is now rejected and returns no output:
 
@@ -305,42 +260,3 @@ HTTP 200
 ```
 
 ![regression test after the fix](docs/images/cve-regression.png)
-
----
-
-## 7. Automated self-check
-
-`selfcheck.py` exercises the API through Flask's test client and asserts the security
-properties directly, so the claims above are reproducible rather than asserted:
-
-```
-[PASS] login with valid credentials returns 200 + token
-[PASS] login with wrong password is rejected (401)
-[PASS] login for unknown user is rejected (401)
-[PASS] SQLi in login rejected: "alice' OR '1'='1"
-[PASS] SQLi in login rejected: "' OR 1=1--"
-[PASS] SQLi in login rejected: "admin'--"
-[PASS] SQLi in ?q= filter matches nothing (no row leak)
-[PASS] GET /api/data without token is denied (401)
-[PASS] GET /api/data with a bogus token is denied (401)
-[PASS] GET /api/data with a tampered signature is denied (401)
-[PASS] GET /api/data with a valid token returns the users
-[PASS] POST /api/posts without token is denied (401)
-[PASS] POST /api/posts with a valid token creates the post (201)
-[PASS] the <script> payload comes back escaped, not executable
-[PASS] password is stored as a scrypt hash, never plaintext
-
-==== PASS=15 FAIL=0 ====
-```
-
----
-
-## 8. Cleanup
-
-The vulnerable environment is deliberately insecure. It runs on `127.0.0.1` only and should be
-removed when finished:
-
-```bash
-cd fixes/CVE-2017-9841 && docker compose down
-cd vulhub/phpunit/CVE-2017-9841 && docker compose down
-```
