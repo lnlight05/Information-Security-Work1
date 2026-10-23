@@ -4,7 +4,7 @@ A deliberately-hardened REST API (Python/Flask) with an automated SAST/SCA pipel
 full reproduction, root-cause analysis and remediation of the real vulnerability
 **CVE-2017-9841** in a Vulhub environment.
 
-- Student: **lnlight** (23320313)
+- Student: **Yuan Junao** (23320313)
 - Repository: <https://github.com/lnlight05/Information-Security-Work1>
 - Latest successful pipeline run:
   <https://github.com/lnlight05/Information-Security-Work1/actions/runs/39890376916>
