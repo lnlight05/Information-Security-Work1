@@ -6,7 +6,8 @@ full reproduction, root-cause analysis and remediation of the real vulnerability
 
 - Student: **lnlight** (23320313)
 - Repository: <https://github.com/lnlight05/Information-Security-Work1>
-- Latest successful pipeline run: <https://github.com/lnlight05/Information-Security-Work1/actions>
+- Latest successful pipeline run:
+  <https://github.com/lnlight05/Information-Security-Work1/actions/runs/39368185475>
 
 ---
 
@@ -17,7 +18,7 @@ full reproduction, root-cause analysis and remediation of the real vulnerability
 ├── app.py                                  Flask application: routes, auth middleware, headers
 ├── security.py                             password hashing, JWT issuing/verification, escaping
 ├── db.py                                   SQLite data layer, parameterized queries only
-├── selfcheck.py                            16 automated assertions against the API
+├── selfcheck.py                            15 automated assertions against the API
 ├── requirements.txt                        Flask + PyJWT (the only two dependencies)
 ├── .github/workflows/ci.yml                SAST + SCA + self-check on every push and PR
 ├── fixes/CVE-2017-9841/                    the fixed vulnerable environment (see section 7)
@@ -36,7 +37,7 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
 python app.py                    # serves http://127.0.0.1:5000
-python selfcheck.py              # runs the 16 automated checks
+python selfcheck.py              # runs the 15 automated checks
 ```
 
 The database is created and seeded automatically on first start with two demo users:
@@ -58,7 +59,6 @@ The database is created and seeded automatically on first start with two demo us
 | `POST` | `/auth/login` | public | takes `login` and `password`, returns a JWT |
 | `GET` | `/api/data` | JWT | list of users; optional `?q=` substring filter |
 | `POST` | `/api/posts` | JWT | create a post (`content`, max 1000 chars) — the self-chosen endpoint |
-| `GET` | `/api/posts` | JWT | list posts; `?format=html` returns an HTML rendering |
 
 ### Examples
 
@@ -110,9 +110,9 @@ The raw text is stored unchanged and **escaped on output** with `html.escape(...
 so the database keeps the real value and only the response is neutralized. Every user-controlled
 field (`username`, `bio`, `post content`) goes through `security.escape()`.
 
-Because a pure JSON API makes this hard to demonstrate, `GET /api/posts?format=html` renders the
-same data as HTML. Storing `<script>alert(1)</script>` and reading it back yields
-`&lt;script&gt;alert(1)&lt;/script&gt;` — in both the JSON body and the HTML page.
+The visible proof is the create-post response: sending `<script>alert(1)</script>` as the content
+returns `&lt;script&gt;alert(1)&lt;/script&gt;`, so the same string that would be a live script in
+a browser comes back as inert text. `selfcheck.py` asserts exactly that.
 
 Additional hardening headers are set on every response: `X-Content-Type-Options: nosniff`,
 `X-Frame-Options: DENY`, `Cache-Control: no-store`.
@@ -141,7 +141,7 @@ Additional hardening headers are set on every response: `X-Content-Type-Options:
 |---|---|---|
 | SAST | **bandit** | static analysis of our own Python code |
 | SCA | **pip-audit** | known vulnerabilities in the pinned dependencies |
-| Functional | `selfcheck.py` | the 16 security assertions still hold |
+| Functional | `selfcheck.py` | the 15 security assertions still hold |
 
 The reports are printed into the job log and uploaded as the `security-reports` artifact.
 
@@ -158,11 +158,11 @@ for the two pinned dependencies.
 **Note on the five suppressed warnings.** Bandit initially reported five low-severity findings,
 all of them false positives: `token_type="Bearer"` (the keyword argument contains the word
 "token") and four dummy passwords inside the test harness. Each of the five lines carries a
-bare `# nosec` and the reason is written next to the code, rather than hiding the rules
-globally with a severity filter or a config-level `skips`. A bare `nosec` is used instead of
-`nosec B105` because bandit emits a spurious "no failed test" warning when the rule id is
-given. Running bandit with `--ignore-nosec` still reproduces exactly those five findings,
-which proves the suppression is deliberate and limited to those lines.
+bare `# nosec`, rather than hiding the rules globally with a severity filter or a config-level
+`skips`. A bare `nosec` is used instead of `nosec B105` because bandit emits a spurious
+"no failed test" warning when the rule id is given. Running bandit with `--ignore-nosec`
+reproduces exactly those five findings, which proves the suppression is deliberate and limited
+to those lines.
 
 ---
 
@@ -327,11 +327,10 @@ properties directly, so the claims above are reproducible rather than asserted:
 [PASS] GET /api/data with a valid token returns the users
 [PASS] POST /api/posts without token is denied (401)
 [PASS] POST /api/posts with a valid token creates the post (201)
-[PASS] stored <script> is escaped in the JSON response
-[PASS] stored <script> is escaped in the HTML view too
+[PASS] the <script> payload comes back escaped, not executable
 [PASS] password is stored as a scrypt hash, never plaintext
 
-==== PASS=16 FAIL=0 ====
+==== PASS=15 FAIL=0 ====
 ```
 
 ---

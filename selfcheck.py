@@ -1,34 +1,19 @@
-"""Self-check: proves the security properties by actually exercising the API.
-
-Uses Flask's test client, so no server and no port are needed.
-The last line is the summary that matters:
-
-    ==== PASS=N FAIL=0 ====
-
-Run:  python selfcheck.py
-"""
-
 import os
 import sys
 
 DB_FILE = os.path.abspath(".selfcheck.db")
 if os.path.exists(DB_FILE):
     os.remove(DB_FILE)
-os.environ["APP_DB"] = DB_FILE  # must be set before app is imported
+os.environ["APP_DB"] = DB_FILE
 
-from app import app  # noqa: E402  (import order is deliberate)
+from app import app
 
 results = []
-
-# The passwords used below are hardcoded on purpose: they are dummy fixtures for
-# the tests, not secrets, so bandit's B105 guess is suppressed with a bare `nosec`.
-# (A bare nosec, rather than `nosec B105`, avoids bandit's spurious matching warning.)
 
 
 def check(name, condition, detail=""):
     ok = bool(condition)
     results.append(ok)
-    # Detail only makes sense when something went wrong; on PASS it would contradict.
     line = "[{}] {}".format("PASS" if ok else "FAIL", name)
     if not ok and detail:
         line += "  -> " + detail
@@ -38,7 +23,6 @@ def check(name, condition, detail=""):
 def main():
     client = app.test_client()
 
-    # --- authentication ---------------------------------------------------
     response = client.post("/auth/login", json={"login": "alice", "password": "secret123"})  # nosec
     token = (response.get_json() or {}).get("token") if response.status_code == 200 else None
     check("login with valid credentials returns 200 + token", response.status_code == 200 and token,
@@ -52,7 +36,6 @@ def main():
     check("login for unknown user is rejected (401)", response.status_code == 401,
           "status={}".format(response.status_code))
 
-    # --- SQL injection ----------------------------------------------------
     for payload in ["alice' OR '1'='1", "' OR 1=1--", "admin'--"]:
         response = client.post("/auth/login", json={"login": payload, "password": "x"})  # nosec
         check("SQLi in login rejected: {!r}".format(payload), response.status_code == 401,
@@ -65,7 +48,6 @@ def main():
           response.status_code == 200 and body.get("count") == 0,
           "count={}".format(body.get("count")))
 
-    # --- access control ---------------------------------------------------
     response = client.get("/api/data")
     check("GET /api/data without token is denied (401)", response.status_code == 401,
           "status={}".format(response.status_code))
@@ -90,25 +72,16 @@ def main():
     check("POST /api/posts without token is denied (401)", response.status_code == 401,
           "status={}".format(response.status_code))
 
-    # --- XSS --------------------------------------------------------------
     payload = "<script>alert('xss')</script>"
     response = client.post("/api/posts", json={"content": payload}, headers=auth)
     check("POST /api/posts with a valid token creates the post (201)",
           response.status_code == 201, "status={}".format(response.status_code))
 
-    response = client.get("/api/posts", headers=auth)
-    raw = response.get_data(as_text=True)
-    check("stored <script> is escaped in the JSON response",
-          "<script>alert" not in raw and "&lt;script&gt;" in raw,
-          "raw script tag leaked into response")
+    returned = (response.get_json() or {}).get("content", "")
+    check("the <script> payload comes back escaped, not executable",
+          "<script>" not in returned and "&lt;script&gt;" in returned,
+          "raw script tag leaked into response: {!r}".format(returned))
 
-    response = client.get("/api/posts", query_string={"format": "html"}, headers=auth)
-    html_body = response.get_data(as_text=True)
-    check("stored <script> is escaped in the HTML view too",
-          "<script>alert" not in html_body and "&lt;script&gt;" in html_body,
-          "raw script tag leaked into HTML")
-
-    # --- password storage -------------------------------------------------
     from db import connect
 
     db_conn = connect()
@@ -122,7 +95,6 @@ def main():
           stored.startswith("scrypt$") and "secret123" not in stored,
           "stored value: {!r}".format(stored[:24] + "..."))
 
-    # --- summary ----------------------------------------------------------
     passed = sum(1 for ok in results if ok)
     failed = len(results) - passed
     print()

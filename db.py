@@ -1,11 +1,3 @@
-"""Data access layer.
-
-Rule for this whole file: SQL text is written once, as a constant, and every
-user-supplied value travels in the parameter tuple. There is no f-string, no
-``%`` and no ``+`` building a query anywhere below -- that is what makes SQL
-injection structurally impossible instead of "filtered".
-"""
-
 import os
 import sqlite3
 
@@ -37,7 +29,7 @@ def connect():
 def init_db(seed: bool = True) -> None:
     conn = connect()
     try:
-        with conn:  # a transaction: commit on success, rollback on error
+        with conn:
             conn.executescript(SCHEMA)
             already = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
             if seed and already == 0:
@@ -58,8 +50,6 @@ def init_db(seed: bool = True) -> None:
         conn.close()
 
 
-# --- reads ---------------------------------------------------------------
-
 def get_user_by_username(username: str):
     conn = connect()
     try:
@@ -72,7 +62,6 @@ def get_user_by_username(username: str):
 
 
 def list_users(search: str = ""):
-    # The LIKE pattern is a *bound value*; the SQL text never changes.
     pattern = "%" + search + "%"
     conn = connect()
     try:
@@ -83,20 +72,6 @@ def list_users(search: str = ""):
     finally:
         conn.close()
 
-
-def list_posts():
-    conn = connect()
-    try:
-        return conn.execute(
-            "SELECT posts.id, users.username, posts.content "
-            "FROM posts JOIN users ON users.id = posts.author_id "
-            "ORDER BY posts.id",
-        ).fetchall()
-    finally:
-        conn.close()
-
-
-# --- writes --------------------------------------------------------------
 
 def create_post(author_id: int, content: str) -> int:
     conn = connect()
