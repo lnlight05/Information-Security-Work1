@@ -105,8 +105,6 @@ The reports are printed into the job log and uploaded as the `security-reports` 
 
 ### Result of the latest run
 
-![CI pipeline succeeded](docs/images/ci-pipeline.png)
-
 Bandit reports **0 issues** (high/medium/low) and pip-audit reports **no known vulnerabilities**
 for the two pinned dependencies.
 
