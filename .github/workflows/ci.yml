@@ -42,10 +42,12 @@ jobs:
           bandit -r . -x ./.venv,./.tmp -f txt | tee bandit-report.txt
 
       # --- SCA: known vulnerabilities in third-party dependencies --------
+      # pip-audit writes its result line to stderr, so 2>&1 is required for the
+      # artifact to contain anything when no vulnerabilities are found.
       - name: SCA - pip-audit
         run: |
           set -o pipefail
-          pip-audit -r requirements.txt -f columns | tee pip-audit-report.txt
+          pip-audit -r requirements.txt -f columns 2>&1 | tee pip-audit-report.txt
 
       # --- the API still behaves correctly -------------------------------
       - name: Functional self-check
